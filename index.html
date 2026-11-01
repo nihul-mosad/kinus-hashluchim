@@ -112,9 +112,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy3)}
 .rank.r3{background:radial-gradient(circle at 35% 30%,#ffe2c4,#d9894a);color:#fff}
 .lane .nm{font-size:22px;color:var(--navy)}
 .track{position:relative;height:38px;background:repeating-linear-gradient(90deg,#eef3ff 0 18px,#e3ebfb 18px 36px);border-radius:999px;overflow:hidden}
-.fill{position:absolute;inset-block:0;inset-inline-start:0;border-radius:999px;display:flex;transition:width .8s cubic-bezier(.2,.9,.3,1.1)}
-.fill span{height:100%}
-.runner{position:absolute;top:50%;transform:translate(50%,-50%);font-size:24px;transition:inset-inline-start .8s cubic-bezier(.2,.9,.3,1.1);filter:drop-shadow(0 2px 2px rgba(0,0,0,.25))}
+.fill{position:absolute;top:0;bottom:0;right:0;border-radius:999px;display:flex;overflow:hidden;transition:width 1.2s cubic-bezier(.2,.9,.3,1.1)}
+.fill span{height:100%;display:block}
+.runner{position:absolute;top:50%;transform:translate(50%,-50%);font-size:24px;transition:right 1.2s cubic-bezier(.2,.9,.3,1.1);filter:drop-shadow(0 2px 2px rgba(0,0,0,.25))}
 .score{text-align:center}
 .score b{display:block;font-size:26px;font-family:"Secular One";color:var(--navy);line-height:1}
 .score small{color:var(--muted);font-size:12px}
@@ -190,6 +190,19 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy3)}
 
 .flash{position:fixed;top:42%;left:50%;transform:translate(-50%,-50%);background:var(--gold);color:var(--navy);font-family:"Secular One",sans-serif;font-size:clamp(28px,5vw,58px);padding:22px 44px;border-radius:26px;z-index:75;box-shadow:0 20px 60px rgba(0,0,0,.45);text-align:center;animation:pop .55s cubic-bezier(.2,1.6,.4,1)}
 @keyframes pop{from{transform:translate(-50%,-50%) scale(.3);opacity:0}}
+.show::before{content:'';position:fixed;inset:-20%;pointer-events:none;background:radial-gradient(circle at 30% 25%,rgba(255,216,77,.20),transparent 22%),radial-gradient(circle at 70% 35%,rgba(120,170,255,.20),transparent 24%),radial-gradient(circle at 50% 80%,rgba(255,255,255,.08),transparent 30%);animation:spots 7s ease-in-out infinite alternate}
+@keyframes spots{to{transform:translate(6%,4%) rotate(8deg)}}
+.show>*:not(.x):not(.intro):not(.flash){position:relative}
+.show .lane{transition:transform .35s,opacity .35s,box-shadow .35s}
+.show.dim .lane:not(.spot):not(.done){opacity:.3}
+.show .lane.spot{transform:scale(1.04);box-shadow:0 0 0 3px var(--gold),0 0 50px rgba(245,183,0,.55);opacity:1}
+.show .lane.winner{border:3px solid var(--gold);animation:glow .8s ease-in-out infinite alternate}
+@keyframes glow{from{box-shadow:0 0 20px rgba(245,183,0,.5)}to{box-shadow:0 0 70px rgba(245,183,0,.95);transform:scale(1.03)}}
+.shake{animation:shake .09s linear infinite}
+@keyframes shake{0%{transform:translate(0,0)}25%{transform:translate(3px,-2px)}50%{transform:translate(-3px,2px)}75%{transform:translate(2px,3px)}}
+.intro{position:fixed;inset:0;z-index:72;display:grid;place-items:center;background:rgba(4,10,32,.82);pointer-events:none}
+.intro b{font-family:"Secular One",sans-serif;color:var(--gold);text-shadow:0 0 40px rgba(245,183,0,.8);font-size:clamp(90px,22vw,260px);line-height:1;animation:pop .5s cubic-bezier(.2,1.6,.4,1);text-align:center;padding:0 20px}
+.intro b.t{font-size:clamp(36px,7vw,90px)}
 .show .catcard{background:rgba(255,255,255,.96)}
 .show .sec-t h2{color:#fff}
 .show .x{gap:8px}
@@ -246,6 +259,10 @@ const SND={on:(()=>{try{return localStorage.getItem('shavua_sound')!=='0'}catch(
   drum(sec){this.noise(0,sec,.55,'bandpass',1800,(t,d)=>{const r=14+t*9;return (Math.sin(t*r*Math.PI*2)>0?1:.25)*(.25+.75*t/d)})},
   crash(t=0){this.noise(t,1.6,.5,'highpass',5000,(x,d)=>Math.pow(1-x/d,2))},
   fanfare(t=0){[[392,0,.16],[392,.18,.16],[392,.36,.16],[523,.54,.8],[466,.95,.22],[523,1.2,1.3]].forEach(([f,a,d])=>{this.tone(f,t+a,d,'sawtooth',.1);this.tone(f*2,t+a,d,'triangle',.07);this.tone(f*1.5,t+a,d,'triangle',.05)})},
+  beep(f=660){this.tone(f,0,.28,'square',.13);this.tone(f/2,0,.28,'sine',.2)},
+  boom(){this.tone(65,0,1,'sine',.7);this.tone(98,0,.5,'triangle',.25);this.noise(0,.35,.45,'lowpass',400,(t,d)=>1-t/d)},
+  whoosh(){this.noise(0,.7,.4,'bandpass',1500,(t,d)=>Math.sin(Math.PI*t/d))},
+  riser(sec){const c=this.c();if(!c||!this.on)return;const o=c.createOscillator(),g=c.createGain(),T=c.currentTime;o.type='sawtooth';o.frequency.setValueAtTime(110,T);o.frequency.exponentialRampToValueAtTime(880,T+sec);g.gain.setValueAtTime(.001,T);g.gain.exponentialRampToValueAtTime(.09,T+sec);g.gain.linearRampToValueAtTime(0,T+sec+.05);o.connect(g).connect(c.destination);o.start(T);o.stop(T+sec+.1)},
   toggle(){this.on=!this.on;try{localStorage.setItem('shavua_sound',this.on?'1':'0')}catch(e){}if(this.on)this.card()}
 };
 const DEF_SETTINGS={title:'שבוע כינוס השלוחים',subtitle:'ת"ת חב"ד עפולה · מבצע הכרטיסים',points:{kippah:1,lang:1,time:1,clean:1},rankBy:'total'};
@@ -267,7 +284,7 @@ const S={classes:[],students:[],events:[],settings:structuredClone(DEF_SETTINGS)
 const UI={view:'login',tab:'give',cls:null,sheet:null,show:false,adminCls:null,user:null,loginErr:'',parentCodes:lsGet('shavua_parent_codes',[]),pdata:{}};
 let API={},MODE='demo';
 let renderPending=false;
-function emit(){ watchLive(); if(isTyping()){renderPending=true;return} render(); }
+function emit(){ if(UI.revealing){renderPending=true;return} watchLive(); if(isTyping()){renderPending=true;return} render(); }
 function isTyping(){const a=document.activeElement;return a&&$('#app').contains(a)&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&a.id!=='q'}
 document.addEventListener('focusout',()=>setTimeout(()=>{if(renderPending&&!isTyping()){renderPending=false;render()}},50));
 
@@ -391,8 +408,8 @@ function toast(msg,act){const t=$('#toast');t.innerHTML=`<span>${esc(msg)}</span
   if(act){const b=document.createElement('button');b.textContent=act.label;b.onclick=()=>{t.classList.remove('on');act.fn()};t.appendChild(b)}
   t.classList.add('on');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('on'),act?5000:2500)}
 const fx=$('#fx'),cx=fx.getContext('2d');let parts=[],raf=null;
-function burst(){fx.width=innerWidth;fx.height=innerHeight;const cols=['#f5b700','#ffd84d','#2f6fed','#12a594','#f08c00','#8b5cf6','#fff'];
-  for(let i=0;i<90;i++)parts.push({x:innerWidth/2,y:innerHeight*.55,vx:(Math.random()-.5)*14,vy:-Math.random()*14-4,r:Math.random()*6+3,c:cols[i%cols.length],a:1,rot:Math.random()*6});
+function burst(bx,by,cnt){fx.width=innerWidth;fx.height=innerHeight;const cols=['#f5b700','#ffd84d','#2f6fed','#12a594','#f08c00','#8b5cf6','#fff'];
+  for(let i=0;i<(cnt||90);i++)parts.push({x:bx??innerWidth/2,y:by??innerHeight*.55,vx:(Math.random()-.5)*14,vy:-Math.random()*14-4,r:Math.random()*6+3,c:cols[i%cols.length],a:1,rot:Math.random()*6});
   if(!raf)tick()}
 function tick(){cx.clearRect(0,0,fx.width,fx.height);parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.45;p.a-=.012;p.rot+=.2;cx.save();cx.globalAlpha=Math.max(p.a,0);cx.translate(p.x,p.y);cx.rotate(p.rot);cx.fillStyle=p.c;cx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6);cx.restore()});
   parts=parts.filter(p=>p.a>0&&p.y<fx.height+20);raf=parts.length?requestAnimationFrame(tick):(cx.clearRect(0,0,fx.width,fx.height),null)}
@@ -464,9 +481,9 @@ function raceHTML(){
   const list=UI.revealing?sortedClasses():order;
   const lanes=list.map(c=>{const x=cls[c.id];const w=Math.max(4,x.score/max*92);const tot=x.cards||1;
     const seg=CATS.map(k=>`<span style="width:${x.cats[k.k]/tot*100}%;background:${k.color}"></span>`).join('');
-    const r=x.score>0&&!UI.revealing?x.rank:0;const icon=UI.revealing?'?':r===1?'🥇':r===2?'🥈':r===3?'🥉':r||'–';
-    return `<div class="lane ${r===1&&x.score>0?'first':''}"><div class="rank r${r}">${icon}</div><div class="nm disp">${esc(c.name)}</div>
-      <div class="track"><div class="fill" data-w="${w}" style="width:${UI.revealing?0:w}%">${x.cards?seg:''}</div><div class="runner" data-w="${w}" style="inset-inline-start:${UI.revealing?0:w}%">${r===1&&x.score>0?'🏆':'⭐'}</div></div>
+    const r=x.score>0&&!UI.revealing?x.rank:0;x.cid=c.id;const icon=UI.revealing?'?':r===1?'🥇':r===2?'🥈':r===3?'🥉':r||'–';
+    return `<div class="lane ${r===1&&x.score>0?'first':''}" data-cid="${c.id}"><div class="rank r${r}">${icon}</div><div class="nm disp">${esc(c.name)}</div>
+      <div class="track"><div class="fill" data-w="${w}" style="width:${UI.revealing?0:w}%">${x.cards?seg:''}</div><div class="runner" data-w="${w}" style="right:${UI.revealing?0:w}%">${r===1&&x.score>0?'🏆':'⭐'}</div></div>
       <div class="score"><b data-v="${fmt(x.score)}">${UI.revealing?'?':fmt(x.score)}</b><small>${avg?'ממוצע לתלמיד':'נקודות'}</small></div></div>`}).join('');
   return `<div class="race">${lanes}</div><div class="legend">${CATS.map(c=>`<span><i style="background:${c.color}"></i>${c.label}</span>`).join('')}</div>`;
 }
@@ -538,14 +555,32 @@ function showView(){
   <div class="sec-t" style="margin-top:30px"><h2>מובילים בכל תחום</h2><div class="line"></div></div>${catLeaders()}</div>
   ${UI.flash?`<div class="flash">${esc(UI.flash)}</div>`:''}</div>`;
 }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function intro(t,big){const sh=$('.show');if(!sh)return;sh.querySelector('.intro')?.remove();if(t==null)return;sh.insertAdjacentHTML('beforeend',`<div class="intro"><b class="${big?'':'t'}">${esc(t)}</b></div>`)}
+function fillLane(c,x){const ln=document.querySelector(`.show .lane[data-cid="${c.id}"]`);if(!ln)return null;
+  ln.querySelector('.fill').style.width=ln.querySelector('.fill').dataset.w+'%';const ru=ln.querySelector('.runner');ru.style.right=ru.dataset.w+'%';ru.textContent=x.rank===1?'🏆':'⭐';
+  const b=ln.querySelector('.score b');b.textContent=b.dataset.v;const rk=ln.querySelector('.rank');rk.className='rank r'+x.rank;rk.textContent=x.rank===1?'🥇':x.rank===2?'🥈':x.rank===3?'🥉':x.rank;
+  ln.classList.add('done');return ln}
+function fireworks(ms){const end=Date.now()+ms;(function f(){if(Date.now()>end)return;burst(innerWidth*(.15+Math.random()*.7),innerHeight*(.15+Math.random()*.5),70);SND.tone(300+Math.random()*500,0,.3,'triangle',.06);setTimeout(f,280)})()}
 async function reveal(){
-  if(UI.revealing)return;UI.revealing=true;render();SND.drum(3.4);
-  await new Promise(r=>setTimeout(r,3400));
-  SND.crash();SND.fanfare(.15);
-  document.querySelectorAll('.show .fill,.show .runner').forEach(f=>{const w=f.dataset.w+'%';f.classList.contains('fill')?f.style.width=w:f.style.insetInlineStart=w});
-  document.querySelectorAll('.show .score b').forEach(b=>b.textContent=b.dataset.v);
-  setTimeout(()=>{burst();burst()},500);
-  setTimeout(()=>{UI.revealing=false;const {order,cls}=calc();if(order[0]&&cls[order[0].id].score>0)flash('🏆 '+order[0].name+' במקום הראשון!');else render()},2600);
+  if(UI.revealing)return;const {order,cls}=calc();
+  if(!order.some(c=>cls[c.id].score>0)){toast('אין עדיין ניקוד לחשוף');return}
+  UI.revealing=true;render();const sh=$('.show');sh.scrollTop=0;
+  intro('מי מוביל בשבוע כינוס השלוחים?');SND.riser(2.2);await sleep(2400);
+  for(const n of [3,2,1]){intro(n,true);SND.beep(n===1?880:587);await sleep(950)}
+  intro(null);sh.classList.add('dim');
+  const asc=order.filter(c=>cls[c.id].rank!==1).reverse();const tops=order.filter(c=>cls[c.id].rank===1);
+  for(const c of asc){const ln=document.querySelector(`.show .lane[data-cid="${c.id}"]`);if(!ln)continue;
+    ln.classList.add('spot');ln.scrollIntoView({block:'center',behavior:'smooth'});SND.drum(1.3);await sleep(1300);
+    SND.boom();SND.whoosh();fillLane(c,cls[c.id]);const r=ln.getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height/2,40);
+    await sleep(1300);ln.classList.remove('spot')}
+  intro('...ובמקום הראשון');sh.classList.add('shake');SND.drum(4.5);SND.riser(4.5);await sleep(4500);
+  sh.classList.remove('shake');intro(null);
+  SND.crash();SND.boom();SND.fanfare(.15);
+  tops.forEach(c=>{const ln=fillLane(c,cls[c.id]);if(ln){ln.classList.add('winner','spot');ln.scrollIntoView({block:'center',behavior:'smooth'})}});
+  fireworks(4500);await sleep(1200);
+  sh.insertAdjacentHTML('beforeend',`<div class="flash">${esc('🏆 '+tops.map(c=>c.name).join(' ו')+' במקום הראשון!')}</div>`);
+  await sleep(5000);sh.classList.remove('dim');UI.revealing=false;renderPending=false;render();
 }
 let flashT;function flash(t){UI.flash=t;render();clearTimeout(flashT);flashT=setTimeout(()=>{UI.flash=null;render()},4200)}
 let prevEv=null,prevLead=null;
