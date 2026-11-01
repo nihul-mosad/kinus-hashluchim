@@ -418,7 +418,7 @@ async function publishNow(){
     map[pc]={all:true,title:S.settings.title,subtitle:S.settings.subtitle,rankBy:avg?'avg':'total',updatedAt:Date.now(),
       classes:order.map(c=>{const x=cls[c.id];return {name:c.name,total:x.total,score:x.score,rank:x.rank,cards:x.cards,cats:x.cats,today:td[c.id]||0}})}}
   const rem=[...removedCodes].filter(c=>!map[c]);removedCodes.clear();
-  try{await API.writePublic(map,rem)}catch(e){console.error(e)}
+  try{await API.writePublic(map,rem);UI.pubOk=Date.now();return true}catch(e){console.error(e);UI.pubErr=String(e.code||e.message||e);if(!UI.pubErrShown){UI.pubErrShown=1;toast('שגיאה בעדכון תצוגת ההורים: '+UI.pubErr)}return false}
 }
 
 /* ---------- actions ---------- */
@@ -559,7 +559,7 @@ function adminTab(){
     ${cl.map(c=>`<div class="clsrow"><div><input data-cname="${c.id}" value="${esc(c.name)}" style="margin-bottom:6px"></div>
       <div class="row" style="flex-direction:column;gap:6px"><button class="btn sm" data-act="renameCls" data-id="${c.id}">שמירה</button><button class="btn red sm" data-act="delCls" data-id="${c.id}">מחיקה</button></div></div>`).join('')}
     <div class="row" style="margin-top:12px"><input id="newCls" placeholder="שם כיתה חדשה" style="flex:1"><button class="btn gold" data-act="addCls">הוספה</button></div>
-    <div class="row" style="margin-top:12px"><button class="btn gold" data-act="pmsg">📋 נוסח הודעה להורים</button></div>
+    <div class="row" style="margin-top:12px"><button class="btn gold" data-act="pmsg">📋 נוסח הודעה להורים</button><button class="btn ghost" data-act="pubNow">🔄 עדכון תצוגת ההורים</button></div>
   </div>
   <div class="card"><h3>תלמידים</h3>
     ${cl.length?`<div class="field"><label>כיתה</label><select id="aCls" data-act="aCls">${cl.map(c=>`<option value="${c.id}" ${c.id===UI.adminCls?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
@@ -837,6 +837,7 @@ document.addEventListener('click',async ev=>{
     case 'delStud':{const s=S.students.find(x=>x.id===id);if(!confirm(`למחוק את ${s.name}? גם הכרטיסים שלו יימחקו.`))return;await API.delStudent(id);schedulePublish();break}
     case 'printSlips':printSlips();break;
     case 'pmsg':UI.pmsg=true;render();break;
+    case 'pubNow':{toast('מעדכן...');const ok=await publishNow();toast(ok?'✓ תצוגת ההורים עודכנה (קוד '+(S.settings.parentCode||'')+')':'✗ נכשל: '+(UI.pubErr||''));break}
     case 'board':UI.board=true;render();break;
     case 'closeBoard':if(ev.target.closest('.sheet')&&!ev.target.closest('button'))return;UI.board=false;render();break;
     case 'printBoard':{const ws=$('#bStars').checked;UI.board=false;render();printBoard(ws);break}
