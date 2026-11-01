@@ -288,7 +288,7 @@ const SND={on:(()=>{try{return localStorage.getItem('shavua_sound')!=='0'}catch(
   riser(sec){const c=this.c();if(!c||!this.on)return;const o=c.createOscillator(),g=c.createGain(),T=c.currentTime;o.type='sawtooth';o.frequency.setValueAtTime(110,T);o.frequency.exponentialRampToValueAtTime(880,T+sec);g.gain.setValueAtTime(.001,T);g.gain.exponentialRampToValueAtTime(.09,T+sec);g.gain.linearRampToValueAtTime(0,T+sec+.05);o.connect(g).connect(c.destination);o.start(T);o.stop(T+sec+.1)},
   toggle(){this.on=!this.on;try{localStorage.setItem('shavua_sound',this.on?'1':'0')}catch(e){}if(this.on)this.card()}
 };
-const DEF_SETTINGS={title:'שבוע כינוס השלוחים',subtitle:'ת"ת חב"ד עפולה · מבצע הכרטיסים',points:{kippah:1,lang:1,time:1,clean:1},rankBy:'total'};
+const DEF_SETTINGS={title:'שבוע כינוס השלוחים',subtitle:'ת"ת חב"ד עפולה · מבצע הכרטיסים',points:{kippah:1,lang:1,time:1,clean:1},rankBy:'total',parentCode:'770770'};
 
 /* ---------- utils ---------- */
 const $=s=>document.querySelector(s);
@@ -413,6 +413,10 @@ async function publishNow(){
   order.forEach(c=>{if(!c.code)return;const x=cls[c.id];
     map[c.code]={name:c.name,total:x.total,cards:x.cards,cats:x.cats,score:x.score,rank:x.rank,of:order.length,rankBy:avg?'avg':'total',
       title:S.settings.title,subtitle:S.settings.subtitle,points:S.settings.points,updatedAt:Date.now()}});
+  const pc=String(S.settings.parentCode||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(pc){const P=S.settings.points,t0=new Date().setHours(0,0,0,0),td={};S.events.forEach(e=>{if(e.demo||e.at<t0)return;td[e.classId]=(td[e.classId]||0)+(Number(P[e.cat])||0)*(e.n||1)});
+    map[pc]={all:true,title:S.settings.title,subtitle:S.settings.subtitle,rankBy:avg?'avg':'total',updatedAt:Date.now(),
+      classes:order.map(c=>{const x=cls[c.id];return {name:c.name,total:x.total,score:x.score,rank:x.rank,cards:x.cards,cats:x.cats,today:td[c.id]||0}})}}
   const rem=[...removedCodes].filter(c=>!map[c]);removedCodes.clear();
   try{await API.writePublic(map,rem)}catch(e){console.error(e)}
 }
@@ -458,7 +462,7 @@ function loginView(){
   const demo=MODE==='demo';
   return `<div class="wrap"><div class="login">
     ${demo?`<div class="banner">מצב הדגמה: האתר עדיין לא מחובר לענן, והנתונים נשמרים רק בדפדפן הזה. לאחר הדבקת הגדרות Firebase הכול יישמר וישותף.</div>`:''}
-    <button class="bigbtn" data-act="goParent"><span class="ic" style="background:var(--goldsoft)">👨‍👦</span><span><b>כניסת הורים</b><span class="muted">צפייה בניקוד הכיתה עם קוד כיתה</span></span></button>
+    <button class="bigbtn" data-act="goParent"><span class="ic" style="background:var(--goldsoft)">👨‍👦</span><span><b>כניסת הורים</b><span class="muted">צפייה בניקוד כל הכיתות</span></span></button>
     <div class="card">
       <h3 style="color:var(--navy);margin-bottom:10px">כניסת צוות</h3>
       ${demo?`<button class="btn" data-act="demoLogin" style="width:100%;justify-content:center">כניסה למערכת (הדגמה)</button>`:
@@ -547,12 +551,12 @@ function adminTab(){
     <div class="field"><label>כותרת</label><input id="s_title" value="${esc(st.title)}"></div>
     <div class="field"><label>שורת משנה</label><input id="s_sub" value="${esc(st.subtitle)}"></div>
     <div class="field"><label>נקודות לכל כרטיס</label><div class="pts4">${CATS.map(c=>`<label style="font-size:13px">${c.label}<input type="number" min="0" step="1" id="s_p_${c.k}" value="${esc(st.points[c.k])}"></label>`).join('')}</div></div>
+    <div class="field"><label>קוד כניסה להורים (אחד לכולם)</label><input id="s_pcode" dir="ltr" value="${esc(st.parentCode||'')}" style="letter-spacing:3px;font-weight:800"></div>
     <div class="field"><label>דירוג הכיתות לפי</label><select id="s_rank"><option value="total" ${st.rankBy!=='avg'?'selected':''}>סך הנקודות</option><option value="avg" ${st.rankBy==='avg'?'selected':''}>ממוצע לתלמיד (הוגן לכיתות בגדלים שונים)</option></select></div>
     <button class="btn" data-act="saveSettings">שמירת הגדרות</button>
   </div>
-  <div class="card"><h3>כיתות וקודים להורים</h3>
-    ${cl.map(c=>`<div class="clsrow"><div><input data-cname="${c.id}" value="${esc(c.name)}" style="margin-bottom:6px"><div class="row" style="gap:6px"><span class="muted" style="font-size:13px">קוד הורים:</span><span class="code">${esc(c.code||'—')}</span>
-      <button class="btn ghost sm" data-act="copyLink" data-id="${c.id}">העתקת קישור</button><button class="btn ghost sm" data-act="newCode" data-id="${c.id}">קוד חדש</button></div></div>
+  <div class="card"><h3>כיתות</h3>
+    ${cl.map(c=>`<div class="clsrow"><div><input data-cname="${c.id}" value="${esc(c.name)}" style="margin-bottom:6px"></div>
       <div class="row" style="flex-direction:column;gap:6px"><button class="btn sm" data-act="renameCls" data-id="${c.id}">שמירה</button><button class="btn red sm" data-act="delCls" data-id="${c.id}">מחיקה</button></div></div>`).join('')}
     <div class="row" style="margin-top:12px"><input id="newCls" placeholder="שם כיתה חדשה" style="flex:1"><button class="btn gold" data-act="addCls">הוספה</button></div>
     <div class="row" style="margin-top:12px"><button class="btn gold" data-act="pmsg">📋 נוסח הודעה להורים</button></div>
@@ -691,33 +695,50 @@ function parentHero(){
   <div class="row"><button class="hbtn" data-act="goLogin">יציאה</button></div></div></header>`;
 }
 function parentView(){
-  const codes=UI.parentCodes;
-  const cards=codes.map(code=>{const p=UI.pdata[code];
-    if(p===undefined)return `<div class="pcard"><div class="pbody"><div class="muted">טוען את קוד ${esc(code)}...</div></div></div>`;
-    if(p===null)return `<div class="pcard"><div class="pbody"><div class="err">הקוד ${esc(code)} לא נמצא. כדאי לבדוק אותו מול הפתק מהתלמוד תורה.</div><button class="btn red sm" data-act="rmCode" data-code="${esc(code)}">הסרה</button></div></div>`;
-    const maxc=Math.max(1,...CATS.map(c=>p.cats?.[c.k]||0));const r=p.rank;
-    const medal=!(p.score>0)?'🏁':r===1?'🥇':r===2?'🥈':r===3?'🥉':'🏅';
-    return `<div class="pcard"><div class="phead"><div><div style="opacity:.8;font-size:14px">הכיתה שלנו</div><h2>${esc(p.name)}</h2></div>
-      <div class="tot"><b>${fmt(p.rankBy==='avg'?p.score:p.total)}</b><small>${p.rankBy==='avg'?'ממוצע לתלמיד':'נקודות'}</small></div></div>
-      <div class="pbody"><div class="prank"><span class="bigm">${medal}</span><span>${(p.score||0)>0?`מקום ${r} מתוך ${p.of} כיתות`:'המירוץ רק התחיל — בהצלחה!'}</span></div>
-      ${CATS.map(c=>{const n=p.cats?.[c.k]||0;return `<div class="pcat"><img src="${c.img}" alt=""><div><b style="color:${c.color}">${c.label}</b><div class="bar"><span style="width:${n/maxc*100}%;background:${c.color}"></span></div></div><div class="n">${fmt(n)}</div></div>`}).join('')}
-      <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12px">עודכן: ${p.updatedAt?new Date(p.updatedAt).toLocaleString('he-IL',{weekday:'short',hour:'2-digit',minute:'2-digit'}):'—'}</span>
-      <button class="btn red sm" data-act="rmCode" data-code="${esc(code)}">הסרה</button></div></div></div>`}).join('');
-  return `<div class="wrap" style="max-width:720px"><div class="card" style="margin-top:18px"><h3 style="color:var(--navy)">הוספת כיתה לצפייה</h3>
-    <p class="muted" style="margin:4px 0 10px">הקלידו את קוד הכיתה מהפתק שקיבלתם. אם יש לכם כמה ילדים — הוסיפו קוד לכל כיתה.</p>
-    <form id="cf" class="row"><input name="c" placeholder="קוד כיתה" dir="ltr" style="flex:1;text-transform:uppercase;letter-spacing:2px;font-weight:800" maxlength="12"><button class="btn gold">הוספה</button></form></div>
-    <div style="display:grid;gap:16px;margin-top:16px">${cards||`<div class="empty">עדיין לא הוספתם קוד כיתה</div>`}</div>
-    <p class="muted" style="text-align:center;font-size:13px;margin-top:20px">בעמוד זה מוצג ניקוד כיתתי כולל בלבד.</p></div>`;
+  const allCode=UI.parentCodes.find(c=>UI.pdata[c]&&UI.pdata[c].all);
+  if(allCode)return parentAll(UI.pdata[allCode]);
+  const loading=UI.parentCodes.some(c=>UI.pdata[c]===undefined);
+  return `<div class="wrap" style="max-width:480px"><div class="card" style="margin-top:26px;text-align:center">
+    <div style="font-size:44px">👨‍👦</div><h3 style="color:var(--navy);font-size:26px">כניסת הורים</h3>
+    <p class="muted" style="margin:6px 0 14px">הקלידו את קוד ההורים שקיבלתם מהת"ת</p>
+    <form id="cf" class="row"><input name="c" inputmode="numeric" autocomplete="off" placeholder="קוד הורים" dir="ltr" style="flex:1;text-align:center;letter-spacing:6px;font-weight:800;font-size:22px" maxlength="12"><button class="btn gold">כניסה</button></form>
+    <div class="err" style="margin-top:8px">${loading?'<span class="muted">בודק...</span>':esc(UI.perr||'')}</div></div></div>`;
+}
+function parentAll(p){
+  const cl=(p.classes||[]).slice().sort((a,b)=>(b.score||0)-(a.score||0));const avg=p.rankBy==='avg';
+  const max=Math.max(1,...cl.map(c=>c.score||0));
+  const totCards=cl.reduce((a,c)=>a+(c.cards||0),0),totToday=cl.reduce((a,c)=>a+(c.today||0),0);
+  const lead=cl[0]&&cl[0].score>0?cl.filter(c=>c.rank===1).map(c=>c.name).join(' ו'):'—';
+  const lanes=cl.map(c=>{const r=c.score>0?c.rank:0,w=Math.max(4,(c.score||0)/max*92),tot=c.cards||1;
+    const seg=CATS.map(k=>`<span style="width:${(c.cats?.[k.k]||0)/tot*100}%;background:${k.color}"></span>`).join('');
+    const ic=r===1?'🥇':r===2?'🥈':r===3?'🥉':(r||'–');
+    return `<div class="lane ${r===1?'first':''}"><div class="rank r${r}">${ic}</div><div class="nm disp">${esc(c.name)}</div>
+      <div class="track"><div class="fill" style="width:${w}%">${c.cards?seg:''}</div><div class="runner" style="right:${w}%">${r===1?'🏆':'⭐'}</div></div>
+      <div class="score"><b>${fmt(c.score||0)}</b><small>${avg?'ממוצע לתלמיד':'נקודות'}${c.today?` · <span style="color:var(--ok);font-weight:800">+${fmt(c.today)} היום</span>`:''}</small></div></div>`}).join('');
+  const leaders=CATS.map(k=>{const b=cl.slice().sort((x,y)=>(y.cats?.[k.k]||0)-(x.cats?.[k.k]||0))[0];const n=b?(b.cats?.[k.k]||0):0;
+    return `<div class="catcard" style="border-color:${k.color}"><img src="${k.img}" alt=""><div><div class="t" style="color:${k.color}">${k.label}</div><div class="w">${n?esc(b.name):'—'}</div><div class="muted" style="font-size:13px">${n?n+' כרטיסים':'עדיין לא חולקו'}</div></div></div>`}).join('');
+  const grid=cl.map(c=>{const mx=Math.max(1,...CATS.map(k=>c.cats?.[k.k]||0));
+    return `<div class="card" style="padding:14px"><div class="row" style="justify-content:space-between"><h3 style="color:var(--navy);font-size:22px">${esc(c.name)}</h3><b style="font-family:'Secular One';font-size:24px;color:var(--navy)">${fmt(c.score||0)}</b></div>
+      ${CATS.map(k=>{const n=c.cats?.[k.k]||0;return `<div class="pcat" style="grid-template-columns:42px 1fr 40px;margin-top:8px"><img src="${k.img}" style="width:42px;height:40px" alt=""><div><b style="color:${k.color};font-size:13px">${k.label}</b><div class="bar"><span style="width:${n/mx*100}%;background:${k.color}"></span></div></div><div class="n" style="font-size:18px">${fmt(n)}</div></div>`}).join('')}</div>`}).join('');
+  const stat=(v,l,ic)=>`<div class="card" style="text-align:center;padding:14px"><div style="font-size:26px">${ic}</div><div style="font-family:'Secular One';font-size:28px;color:var(--navy);line-height:1.1">${v}</div><div class="muted" style="font-size:13px">${l}</div></div>`;
+  return `<div class="wrap">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:18px">${stat(esc(lead),'מובילה כרגע','🏆')}${stat(fmt(totCards),'כרטיסים חולקו בת"ת','🎟️')}${stat(totToday?'+'+fmt(totToday):'0','נקודות נוספו היום','📈')}</div>
+    <div class="sec-t"><h2>🏁 מירוץ הכיתות</h2><div class="line"></div></div><div class="race">${lanes}</div>
+    <div class="legend">${CATS.map(c=>`<span><i style="background:${c.color}"></i>${c.label}</span>`).join('')}</div>
+    <div class="sec-t"><h2>🏆 מובילים בכל תחום</h2><div class="line"></div></div><div class="catgrid">${leaders}</div>
+    <div class="sec-t"><h2>📊 פירוט לפי כיתה</h2><div class="line"></div></div><div class="stars3">${grid}</div>
+    <p class="muted" style="text-align:center;font-size:13px;margin-top:22px">עודכן: ${p.updatedAt?new Date(p.updatedAt).toLocaleString('he-IL',{weekday:'long',hour:'2-digit',minute:'2-digit'}):'—'} · מוצגים נתונים כיתתיים בלבד</p></div>`;
 }
 const watchers={};
 function watchCodes(){
-  UI.parentCodes.forEach(code=>{if(watchers[code])return;watchers[code]=API.watchPublic(code,d=>{UI.pdata[code]=d;if(UI.view==='parent')emit()})});
+  UI.parentCodes.forEach(code=>{if(watchers[code])return;watchers[code]=API.watchPublic(code,d=>{if(d===null){UI.perr='הקוד שגוי, נסו שוב';UI.parentCodes=UI.parentCodes.filter(x=>x!==code);lsSet('shavua_parent_codes',UI.parentCodes);setTimeout(watchCodes,0)}else{UI.pdata[code]=d;UI.perr=''}if(UI.view==='parent')emit()})});
   Object.keys(watchers).forEach(c=>{if(!UI.parentCodes.includes(c)){try{watchers[c]()}catch(e){}delete watchers[c];delete UI.pdata[c]}});
 }
 function addCode(c){c=String(c||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(!c)return;if(!UI.parentCodes.includes(c))UI.parentCodes.push(c);lsSet('shavua_parent_codes',UI.parentCodes);watchCodes()}
 
 /* ---------- הודעה להורים ---------- */
-function parentMsg(c){
+function parentMsg(){
+  const pc=S.settings.parentCode||DEF_SETTINGS.parentCode;
   return `הורים יקרים שלום,
 
 לכבוד ${S.settings.title||'שבוע כינוס השלוחים'} מתקיים בת"ת מבצע כרטיסים!
@@ -727,18 +748,18 @@ function parentMsg(c){
 ⭐ עלייה לכיתה מיד בסוף ההפסקה
 ⭐ שמירה על מקום נקי ומסודר
 
-אפשר לעקוב אחרי הניקוד של ${c.name} בקישור:
-${siteUrl()}#p=${c.code}
+אפשר לעקוב אחרי מירוץ הכיתות בקישור:
+${siteUrl()}#p=${pc}
 
-(או: כניסה לאתר ← "כניסת הורים" ← קוד הכיתה: ${c.code})
+(או: כניסה לאתר ← "כניסת הורים" ← קוד: ${pc})
 
 עודדו את הילדים — בהצלחה לכולם!`;
 }
 function pmsgView(){
-  return `<div class="sheet-wrap" data-act="closePmsg"><div class="sheet">
-    <h3>📋 נוסח הודעה להורים</h3><div class="sub">הודעה נפרדת לכל כיתה, עם קישור שפותח ישר את הכיתה. מעתיקים ושולחים לקבוצת ההורים.</div>
-    <div style="display:grid;gap:14px">${sortedClasses().map(c=>`<div class="card" style="padding:14px"><div class="row" style="justify-content:space-between;margin-bottom:8px"><b style="font-size:18px;color:var(--navy)">${esc(c.name)}</b><button class="btn gold sm" data-act="copyMsg" data-id="${c.id}">העתקה</button></div>
-      <textarea id="pm_${c.id}" rows="9" readonly style="font-size:14px;line-height:1.5">${esc(parentMsg(c))}</textarea></div>`).join('')}</div>
+  return `<div class="sheet-wrap" data-act="closePmsg"><div class="sheet" style="max-width:620px">
+    <h3>📋 נוסח הודעה להורים</h3><div class="sub">הודעה אחת לכל ההורים. הקישור נכנס ישר לדשבורד, בלי להקליד קוד.</div>
+    <div class="card" style="padding:14px"><div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn gold sm" data-act="copyMsg">העתקה</button></div>
+      <textarea id="pm_all" rows="15" readonly style="font-size:14px;line-height:1.5">${esc(parentMsg())}</textarea></div>
     <div style="text-align:center;margin-top:14px"><button class="btn ghost" data-act="closePmsg">סגירה</button></div></div></div>`;
 }
 async function copyText(t,ta){try{await navigator.clipboard.writeText(t)}catch(e){if(ta){ta.focus();ta.select();document.execCommand('copy');ta.blur()}}}
@@ -803,7 +824,8 @@ document.addEventListener('click',async ev=>{
     case 'unshow':UI.show=false;try{document.fullscreenElement&&document.exitFullscreen()}catch(e){}render();break;
     case 'delEv':if(confirm('למחוק את הכרטיס?')){await API.delEvent(id);schedulePublish()}break;
     case 'saveSettings':{const p={};CATS.forEach(c=>p[c.k]=Math.max(0,Number($('#s_p_'+c.k).value)||0));
-      await API.saveSettings({title:$('#s_title').value.trim()||DEF_SETTINGS.title,subtitle:$('#s_sub').value.trim(),points:p,rankBy:$('#s_rank').value});
+      const npc=$('#s_pcode').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')||DEF_SETTINGS.parentCode;const opc=String(S.settings.parentCode||'').toUpperCase();if(opc&&opc!==npc)removedCodes.add(opc);
+      await API.saveSettings({title:$('#s_title').value.trim()||DEF_SETTINGS.title,subtitle:$('#s_sub').value.trim(),points:p,rankBy:$('#s_rank').value,parentCode:npc});
       schedulePublish();toast('ההגדרות נשמרו');break}
     case 'addCls':{const n=$('#newCls').value.trim();if(!n)return;await API.saveClass({id:rid(),name:n,order:S.classes.length,code:newCode()});schedulePublish();toast('הכיתה נוספה');break}
     case 'renameCls':{const v=document.querySelector(`[data-cname="${id}"]`).value.trim();if(!v)return;await API.saveClass({id,name:v});schedulePublish();toast('נשמר');break}
@@ -819,7 +841,7 @@ document.addEventListener('click',async ev=>{
     case 'closeBoard':if(ev.target.closest('.sheet')&&!ev.target.closest('button'))return;UI.board=false;render();break;
     case 'printBoard':{const ws=$('#bStars').checked;UI.board=false;render();printBoard(ws);break}
     case 'closePmsg':if(ev.target.closest('.sheet')&&!ev.target.closest('button'))return;UI.pmsg=false;render();break;
-    case 'copyMsg':{const c=S.classes.find(x=>x.id===id);await copyText(parentMsg(c),document.getElementById('pm_'+id));el.textContent='✓ הועתק';setTimeout(()=>el.textContent='העתקה',2000);break}
+    case 'copyMsg':{await copyText(parentMsg(),document.getElementById('pm_all'));el.textContent='✓ הועתק';setTimeout(()=>el.textContent='העתקה',2000);break}
     case 'snd':SND.toggle();render();break;
     case 'reveal':reveal();break;
     case 'loadDemo':loadDemo();break;
@@ -843,7 +865,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(UI.pmsg){UI.pmsg
   if(FIREBASE_CONFIG){MODE='fb';try{await initFirebase()}catch(e){console.error(e);MODE='demo';initDemo()}}else{initDemo();await publishNow()}
   const m=location.hash.match(/p=([A-Za-z0-9]+)/);
   if(m){addCode(m[1]);UI.view='parent';history.replaceState(null,'',siteUrl())}
-  if(MODE==='fb')API.onAuth(u=>{UI.user=u;if(u){if(UI.view!=='parent'){UI.view='staff'}API.startStaff()}else{API.stopStaff();if(UI.view==='staff')UI.view='login'}render()});
+  if(MODE==='fb')API.onAuth(u=>{UI.user=u;if(u){if(UI.view!=='parent'){UI.view='staff'}API.startStaff();setTimeout(publishNow,5000)}else{API.stopStaff();if(UI.view==='staff')UI.view='login'}render()});
   watchCodes();render();
 })();
 </script>
