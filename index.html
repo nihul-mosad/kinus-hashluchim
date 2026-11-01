@@ -213,7 +213,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy3)}
    הגדרות Firebase — הדבק כאן את ה-config מהמסוף של Firebase.
    כל עוד הערך הוא null האתר פועל במצב הדגמה (נשמר רק בדפדפן).
    ========================================================= */
-const FIREBASE_CONFIG = null;
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBeH6H1Y_yW0JQNmJUXyzAdI8-1UDpr9lA",
+  authDomain: "kinus-hashluchim.firebaseapp.com",
+  projectId: "kinus-hashluchim",
+  storageBucket: "kinus-hashluchim.firebasestorage.app",
+  messagingSenderId: "11250791455",
+  appId: "1:11250791455:web:cefdab3d1c64868436d12a"
+};
 /* חשבון הצוות המשותף — כולם נכנסים עם אותה סיסמה */
 const STAFF_EMAIL = 'tzevet@kinus-hashluchim.app';
 
@@ -405,7 +412,7 @@ function staffView(){
 }
 
 function giveTab(){
-  const cl=sortedClasses();if(!cl.length)return `<div class="empty card">עדיין אין כיתות. הוסף כיתות בלשונית "ניהול".</div>`;
+  const cl=sortedClasses();if(!cl.length)return `<div class="empty card" style="margin-top:14px"><p>עדיין אין כיתות.</p><button class="btn gold" data-act="seedCls">יצירת כיתות א׳–ה׳</button><p class="muted" style="font-size:13px">או הוספה ידנית בלשונית "ניהול"</p></div>`;
   if(!UI.cls||!cl.find(c=>c.id===UI.cls))UI.cls=cl[0].id;
   const {cls,st}=calc();const list=studentsOf(UI.cls);
   return `<div class="chips">${cl.map(c=>`<button class="chip ${c.id===UI.cls?'on':''}" data-act="cls" data-id="${c.id}">${esc(c.name)}<small>${fmt(cls[c.id].total)}</small></button>`).join('')}</div>
@@ -576,6 +583,7 @@ document.addEventListener('click',async ev=>{
       await API.addStudents(names.map(n=>({id:rid(),classId:UI.adminCls,name:n})));$('#newStuds').value='';toast(`נוספו ${names.length} תלמידים`);break}
     case 'delStud':{const s=S.students.find(x=>x.id===id);if(!confirm(`למחוק את ${s.name}? גם הכרטיסים שלו יימחקו.`))return;await API.delStudent(id);schedulePublish();break}
     case 'printSlips':printSlips();break;
+    case 'seedCls':{const ex=S.classes.length;for(const [i,n] of ['א','ב','ג','ד','ה'].entries())await API.saveClass({id:rid(),name:'כיתה '+n+'׳',order:ex+i,code:newCode()});schedulePublish();toast('נוצרו 5 כיתות');break}
     case 'reset':{const v=prompt('לאיפוס כל הניקוד הקלידו: איפוס');if(v!=='איפוס')return;await API.resetEvents();schedulePublish();toast('הניקוד אופס');break}
     case 'rmCode':UI.parentCodes=UI.parentCodes.filter(c=>c!==el.dataset.code);lsSet('shavua_parent_codes',UI.parentCodes);watchCodes();render();break;
   }
