@@ -548,21 +548,20 @@ function logTab(){
 }
 
 function visitsTab(){
-  if(UI.visErr)return `<div class="card" style="margin-top:14px"><h3 style="color:var(--bad)">אין גישה לרשימת הכניסות</h3><p class="muted">צריך לעדכן את כללי האבטחה ב-Firebase (Firestore ← Rules) לנוסח החדש. (${esc(UI.visErr)})</p></div>`;
-  const v=S.visits||[];const t0=new Date().setHours(0,0,0,0);const g={};
-  v.forEach(x=>{const k=x.vid||x.id;(g[k]=g[k]||{name:x.name,cls:x.cls,n:0,first:x.at,last:x.at}).n++;const o=g[k];if(x.at<o.first)o.first=x.at;if(x.at>o.last){o.last=x.at;o.name=x.name;o.cls=x.cls}});
-  const rows=Object.values(g).sort((a,b)=>b.last-a.last);
-  const today=v.filter(x=>x.at>=t0).length,todayP=new Set(v.filter(x=>x.at>=t0).map(x=>x.vid)).size;
-  const byCls={};rows.forEach(r=>byCls[r.cls||'—']=(byCls[r.cls||'—']||0)+1);
-  const fd=t=>new Date(t).toLocaleString('he-IL',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'});
+  if(UI.visErr)return `<div class="card" style="margin-top:14px"><h3 style="color:var(--bad)">אין גישה לנתוני הכניסות</h3><p class="muted">צריך לעדכן את כללי האבטחה ב-Firebase (Firestore ← Rules) לנוסח החדש. (${esc(UI.visErr)})</p></div>`;
+  const v=S.visits||[];const day=t=>{const d=new Date(t);d.setHours(0,0,0,0);return d.getTime()};const t0=day(Date.now());
+  const devs=new Set(v.map(x=>x.vid)).size,today=v.filter(x=>x.at>=t0),todayDev=new Set(today.map(x=>x.vid)).size;
+  const days=[];for(let i=13;i>=0;i--){const d=t0-i*864e5;const list=v.filter(x=>day(x.at)===d);days.push({d,n:list.length,u:new Set(list.map(x=>x.vid)).size})}
+  const mx=Math.max(1,...days.map(x=>x.n));
   const stat=(val,l,ic)=>`<div class="card" style="text-align:center;padding:14px"><div style="font-size:24px">${ic}</div><div style="font-family:'Secular One';font-size:30px;color:var(--navy);line-height:1.1">${val}</div><div class="muted" style="font-size:13px">${l}</div></div>`;
-  return `<div class="sec-t"><h2>כניסות הורים</h2><div class="line"></div></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">${stat(rows.length,'הורים שנכנסו','👨‍👦')}${stat(v.length,'סה"כ כניסות','🔁')}${stat(today,'כניסות היום','📅')}${stat(todayP,'הורים שנכנסו היום','✅')}</div>
-  ${rows.length?`<div class="chips" style="margin-top:14px">${Object.entries(byCls).map(([k,n])=>`<span class="chip">${esc(k)}<small>${n} הורים</small></span>`).join('')}</div>
-  <div style="overflow-x:auto"><table class="log"><tr><th>שם ההורה</th><th>כיתת הילד</th><th>כניסות</th><th>כניסה ראשונה</th><th>כניסה אחרונה</th></tr>
-  ${rows.map(r=>`<tr><td><b>${esc(r.name||'—')}</b></td><td>${esc(r.cls||'—')}</td><td><span class="tag" style="background:var(--navy3)">${r.n}</span></td><td>${fd(r.first)}</td><td>${fd(r.last)}</td></tr>`).join('')}</table></div>
-  <div style="margin-top:14px"><button class="btn red sm" data-act="clrVisits">איפוס רשימת הכניסות</button></div>`
-  :`<div class="empty card" style="margin-top:14px">עדיין לא נכנסו הורים</div>`}`;
+  const bars=days.map(x=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0"><b style="font-size:12px;color:var(--navy)">${x.n||''}</b>
+    <div style="width:70%;height:${Math.max(3,x.n/mx*150)}px;background:${x.d===t0?'var(--gold)':'var(--navy3)'};border-radius:6px 6px 2px 2px" title="${x.n} כניסות, ${x.u} מכשירים"></div>
+    <span style="font-size:11px;color:var(--muted)">${new Date(x.d).toLocaleDateString('he-IL',{day:'numeric',month:'numeric'})}</span></div>`).join('');
+  return `<div class="sec-t"><h2>כניסות לאתר ההורים</h2><div class="line"></div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">${stat(v.length,'סה"כ כניסות','🔁')}${stat(devs,'מכשירים שונים (בערך מס׳ ההורים)','📱')}${stat(today.length,'כניסות היום','📅')}${stat(todayDev,'מכשירים היום','✅')}</div>
+  <div class="card" style="margin-top:14px"><h3 style="color:var(--navy);margin-bottom:12px">כניסות ב-14 הימים האחרונים</h3><div style="display:flex;align-items:flex-end;gap:4px;height:190px">${bars}</div></div>
+  <p class="muted" style="font-size:13px">הנתונים אנונימיים: לא נאסף שום פרט מזהה על ההורים. "מכשיר" = טלפון או מחשב שנכנס לפחות פעם אחת.</p>
+  ${v.length?`<button class="btn red sm" data-act="clrVisits">איפוס נתוני הכניסות</button>`:''}`;
 }
 function adminTab(){
   const cl=sortedClasses();const st=S.settings;
@@ -718,8 +717,9 @@ function parentHero(){
 }
 function parentView(){
   const allCode=UI.parentCodes.find(c=>UI.pdata[c]&&UI.pdata[c].all);
-  if(allCode){const p=UI.pdata[allCode];if(!UI.who)return whoForm(p);
-    if(!UI.visitLogged){UI.visitLogged=true;Promise.resolve(API.logVisit({vid:UI.who.vid,name:UI.who.name,cls:UI.who.cls,at:Date.now()})).catch(e=>console.error(e))}
+  if(allCode){const p=UI.pdata[allCode];
+    if(!UI.visitLogged){UI.visitLogged=true;let vid=lsGet('shavua_vid',null);if(!vid){vid=rid();lsSet('shavua_vid',vid)}
+      Promise.resolve(API.logVisit({vid,name:'',cls:'',at:Date.now()})).catch(e=>console.error(e))}
     return parentAll(p)}
   const loading=UI.parentCodes.some(c=>UI.pdata[c]===undefined);
   return `<div class="wrap" style="max-width:480px"><div class="card" style="margin-top:26px;text-align:center">
@@ -758,7 +758,7 @@ function parentAll(p){
     <div class="legend">${CATS.map(c=>`<span><i style="background:${c.color}"></i>${c.label}</span>`).join('')}</div>
     <div class="sec-t"><h2>🏆 מובילים בכל תחום</h2><div class="line"></div></div><div class="catgrid">${leaders}</div>
     <div class="sec-t"><h2>📊 פירוט לפי כיתה</h2><div class="line"></div></div><div class="stars3">${grid}</div>
-    <p class="muted" style="text-align:center;font-size:13px;margin-top:22px">עודכן: ${p.updatedAt?new Date(p.updatedAt).toLocaleString('he-IL',{weekday:'long',hour:'2-digit',minute:'2-digit'}):'—'} · מוצגים נתונים כיתתיים בלבד<br><button class="btn ghost sm" style="margin-top:8px" data-act="changeWho">לא ${esc(UI.who?.name||'')}? החלפה</button></p></div>`;
+    <p class="muted" style="text-align:center;font-size:13px;margin-top:22px">עודכן: ${p.updatedAt?new Date(p.updatedAt).toLocaleString('he-IL',{weekday:'long',hour:'2-digit',minute:'2-digit'}):'—'} · מוצגים נתונים כיתתיים בלבד</p></div>`;
 }
 const watchers={};
 function watchCodes(){
