@@ -307,7 +307,7 @@ const S={classes:[],students:[],events:[],settings:structuredClone(DEF_SETTINGS)
 const UI={view:'login',tab:'give',cls:null,sheet:null,show:false,adminCls:null,user:null,loginErr:'',parentCodes:lsGet('shavua_parent_codes',[]),pdata:{}};
 let API={},MODE='demo';
 let renderPending=false;
-function emit(){ if(UI.revealing){renderPending=true;return} watchLive(); if(isTyping()){renderPending=true;return} render(); }
+function emit(){ if(UI.view==='staff'&&UI.user&&S.classes.length)schedulePublish(); if(UI.revealing){renderPending=true;return} watchLive(); if(isTyping()){renderPending=true;return} render(); }
 function isTyping(){const a=document.activeElement;return a&&$('#app').contains(a)&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&a.id!=='q'}
 document.addEventListener('focusout',()=>setTimeout(()=>{if(renderPending&&!isTyping()){renderPending=false;render()}},50));
 
