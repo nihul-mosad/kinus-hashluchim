@@ -426,6 +426,7 @@ function render(){
   else app.innerHTML=hero(`<button class="hbtn" data-act="snd" title="צלילים">${SND.on?'🔊':'🔇'}</button><button class="hbtn gold" data-act="show">📺 מסך הקרנה</button><button class="hbtn" data-act="logout">יציאה</button>`)+staffView();
   if(UI.show&&UI.view==='staff')app.insertAdjacentHTML('beforeend',showView());
   if(UI.sheet)app.insertAdjacentHTML('beforeend',sheetView());
+  if(UI.pmsg&&UI.view==='staff')app.insertAdjacentHTML('beforeend',pmsgView());
   const q=$('#q');if(q&&UI.q){q.value=UI.q;filterTiles()}
 }
 
@@ -530,7 +531,7 @@ function adminTab(){
       <button class="btn ghost sm" data-act="copyLink" data-id="${c.id}">העתקת קישור</button><button class="btn ghost sm" data-act="newCode" data-id="${c.id}">קוד חדש</button></div></div>
       <div class="row" style="flex-direction:column;gap:6px"><button class="btn sm" data-act="renameCls" data-id="${c.id}">שמירה</button><button class="btn red sm" data-act="delCls" data-id="${c.id}">מחיקה</button></div></div>`).join('')}
     <div class="row" style="margin-top:12px"><input id="newCls" placeholder="שם כיתה חדשה" style="flex:1"><button class="btn gold" data-act="addCls">הוספה</button></div>
-    <div class="row" style="margin-top:12px"><button class="btn ghost" data-act="printSlips">🖨️ הדפסת פתקים להורים</button></div>
+    <div class="row" style="margin-top:12px"><button class="btn gold" data-act="pmsg">📋 נוסח הודעה להורים</button></div>
   </div>
   <div class="card"><h3>תלמידים</h3>
     ${cl.length?`<div class="field"><label>כיתה</label><select id="aCls" data-act="aCls">${cl.map(c=>`<option value="${c.id}" ${c.id===UI.adminCls?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
@@ -691,6 +692,33 @@ function watchCodes(){
 }
 function addCode(c){c=String(c||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(!c)return;if(!UI.parentCodes.includes(c))UI.parentCodes.push(c);lsSet('shavua_parent_codes',UI.parentCodes);watchCodes()}
 
+/* ---------- הודעה להורים ---------- */
+function parentMsg(c){
+  return `הורים יקרים שלום,
+
+לכבוד ${S.settings.title||'שבוע כינוס השלוחים'} מתקיים בת"ת מבצע כרטיסים!
+התלמידים צוברים נקודות לכיתה על:
+⭐ כיפה על הראש
+⭐ שפה נקייה
+⭐ עלייה לכיתה מיד בסוף ההפסקה
+⭐ שמירה על מקום נקי ומסודר
+
+אפשר לעקוב אחרי הניקוד של ${c.name} בקישור:
+${siteUrl()}#p=${c.code}
+
+(או: כניסה לאתר ← "כניסת הורים" ← קוד הכיתה: ${c.code})
+
+עודדו את הילדים — בהצלחה לכולם!`;
+}
+function pmsgView(){
+  return `<div class="sheet-wrap" data-act="closePmsg"><div class="sheet">
+    <h3>📋 נוסח הודעה להורים</h3><div class="sub">הודעה נפרדת לכל כיתה, עם קישור שפותח ישר את הכיתה. מעתיקים ושולחים לקבוצת ההורים.</div>
+    <div style="display:grid;gap:14px">${sortedClasses().map(c=>`<div class="card" style="padding:14px"><div class="row" style="justify-content:space-between;margin-bottom:8px"><b style="font-size:18px;color:var(--navy)">${esc(c.name)}</b><button class="btn gold sm" data-act="copyMsg" data-id="${c.id}">העתקה</button></div>
+      <textarea id="pm_${c.id}" rows="9" readonly style="font-size:14px;line-height:1.5">${esc(parentMsg(c))}</textarea></div>`).join('')}</div>
+    <div style="text-align:center;margin-top:14px"><button class="btn ghost" data-act="closePmsg">סגירה</button></div></div></div>`;
+}
+async function copyText(t,ta){try{await navigator.clipboard.writeText(t)}catch(e){if(ta){ta.focus();ta.select();document.execCommand('copy');ta.blur()}}}
+
 /* ---------- print slips ---------- */
 function printSlips(){
   const url=siteUrl();
@@ -731,6 +759,9 @@ document.addEventListener('click',async ev=>{
       await API.addStudents(names.map(n=>({id:rid(),classId:UI.adminCls,name:n})));$('#newStuds').value='';toast(`נוספו ${names.length} תלמידים`);break}
     case 'delStud':{const s=S.students.find(x=>x.id===id);if(!confirm(`למחוק את ${s.name}? גם הכרטיסים שלו יימחקו.`))return;await API.delStudent(id);schedulePublish();break}
     case 'printSlips':printSlips();break;
+    case 'pmsg':UI.pmsg=true;render();break;
+    case 'closePmsg':if(ev.target.closest('.sheet')&&!ev.target.closest('button'))return;UI.pmsg=false;render();break;
+    case 'copyMsg':{const c=S.classes.find(x=>x.id===id);await copyText(parentMsg(c),document.getElementById('pm_'+id));el.textContent='✓ הועתק';setTimeout(()=>el.textContent='העתקה',2000);break}
     case 'snd':SND.toggle();render();break;
     case 'reveal':reveal();break;
     case 'loadDemo':loadDemo();break;
@@ -747,7 +778,7 @@ document.addEventListener('submit',async e=>{
   if(e.target.id==='cf'){addCode(e.target.c.value);e.target.c.value='';render()}
   if(e.target.id==='lf'){UI.loginErr='';try{await API.login(STAFF_EMAIL,e.target.p.value)}catch(err){UI.loginErr='סיסמה שגויה';render()}}
 });
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(UI.sheet){UI.sheet=null;render()}else if(UI.show){UI.show=false;render()}}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(UI.pmsg){UI.pmsg=false;render()}else if(UI.sheet){UI.sheet=null;render()}else if(UI.show){UI.show=false;render()}}});
 
 /* ---------- boot ---------- */
 (async function boot(){
