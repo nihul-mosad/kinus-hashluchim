@@ -303,8 +303,8 @@ const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d
 const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 
 /* ---------- state ---------- */
-const S={classes:[],students:[],events:[],settings:structuredClone(DEF_SETTINGS)};
-const UI={view:'login',tab:'give',cls:null,sheet:null,show:false,adminCls:null,user:null,loginErr:'',parentCodes:lsGet('shavua_parent_codes',[]),pdata:{}};
+const S={classes:[],students:[],events:[],visits:[],settings:structuredClone(DEF_SETTINGS)};
+const UI={view:'login',tab:'give',cls:null,sheet:null,show:false,adminCls:null,user:null,loginErr:'',parentCodes:lsGet('shavua_parent_codes',[]),pdata:{},who:lsGet('shavua_parent_who',null)};
 let API={},MODE='demo';
 let renderPending=false;
 function emit(){ if(UI.view==='staff'&&UI.user&&S.classes.length)schedulePublish(); if(UI.revealing){renderPending=true;return} watchLive(); if(isTyping()){renderPending=true;return} render(); }
@@ -321,8 +321,8 @@ function initDemo(){
     d.classes.forEach(c=>{for(let i=1;i<=8;i++)d.students.push({id:rid(),classId:c.id,name:'תלמיד '+i})});
   }
   Object.assign(S,{classes:d.classes,students:d.students,events:d.events,settings:{...DEF_SETTINGS,...d.settings}});
-  let pub=d.pub||{};
-  const save=()=>lsSet(LS,{classes:S.classes,students:S.students,events:S.events,settings:S.settings,pub});
+  let pub=d.pub||{};S.visits=d.visits||[];
+  const save=()=>lsSet(LS,{classes:S.classes,students:S.students,events:S.events,settings:S.settings,pub,visits:S.visits});
   const done=()=>{save();emit()};
   const upsert=(arr,o)=>{const i=arr.findIndex(x=>x.id===o.id);i<0?arr.push(o):arr[i]={...arr[i],...o}};
   API={
@@ -342,6 +342,8 @@ function initDemo(){
     resetEvents:async()=>{S.events=[];done()},
     writePublic:async(map,removed)=>{removed.forEach(c=>delete pub[c]);Object.assign(pub,map);save()},
     watchPublic:(code,cb)=>{cb(pub[code]||null);return()=>{}},
+    logVisit:async v=>{S.visits.push({id:rid(),...v});save()},
+    delVisits:async()=>{S.visits=[];done()},
   };
 }
 
@@ -364,6 +366,7 @@ async function initFirebase(){
         F.onSnapshot(F.collection(fs,'classes'),q=>{S.classes=q.docs.map(x=>({id:x.id,...x.data()}));emit()},fail),
         F.onSnapshot(F.collection(fs,'students'),q=>{S.students=q.docs.map(x=>({id:x.id,...x.data()}));emit()},fail),
         F.onSnapshot(F.collection(fs,'events'),q=>{S.events=q.docs.map(x=>({id:x.id,...x.data()}));emit()},fail),
+        F.onSnapshot(F.collection(fs,'visits'),q=>{S.visits=q.docs.map(x=>({id:x.id,...x.data()}));UI.visErr=null;emit()},e=>{console.error(e);UI.visErr=String(e.code||e);S.visits=[];emit()}),
         F.onSnapshot(d('settings','main'),x=>{const v=x.exists()?x.data():{};S.settings={...DEF_SETTINGS,...v,points:{...DEF_SETTINGS.points,...(v.points||{})}};emit()},fail),
       ];
     },
@@ -381,6 +384,8 @@ async function initFirebase(){
     saveSettings:st=>F.setDoc(d('settings','main'),st),
     resetEvents:()=>chunks(S.events.map(e=>b=>b.delete(d('events',e.id)))),
     writePublic:(map,removed)=>chunks([...Object.entries(map).map(([c,v])=>b=>b.set(d('public',c),v)),...removed.map(c=>b=>b.delete(d('public',c)))]),
+    logVisit:v=>F.setDoc(d('visits',rid()),v),
+    delVisits:()=>chunks(S.visits.map(v=>b=>b.delete(d('visits',v.id)))),
     watchPublic:(code,cb)=>F.onSnapshot(d('public',code),x=>cb(x.exists()?x.data():null),()=>cb(null)),
   };
 }
@@ -472,8 +477,8 @@ function loginView(){
 }
 
 function staffView(){
-  const tabs=[['give','🎟️ חלוקת כרטיסים'],['race','🏁 מירוץ הכיתות'],['stars','⭐ מצטיינים'],['log','📋 יומן'],['admin','⚙️ ניהול']];
-  const body={give:giveTab,race:raceTab,stars:starsTab,log:logTab,admin:adminTab}[UI.tab]();
+  const tabs=[['give','🎟️ חלוקת כרטיסים'],['race','🏁 מירוץ הכיתות'],['stars','⭐ מצטיינים'],['log','📋 יומן'],['visits','👨‍👩‍👦 כניסות הורים'],['admin','⚙️ ניהול']];
+  const body={give:giveTab,race:raceTab,stars:starsTab,log:logTab,visits:visitsTab,admin:adminTab}[UI.tab]();
   return `<div class="wrap">${MODE==='demo'?`<div class="banner">מצב הדגמה: הנתונים נשמרים רק בדפדפן הזה.</div>`:''}
   ${S.events.some(e=>e.demo)?`<div class="banner">🎭 יש כרגע נתוני הדגמה במערכת (לא נשלחים להורים). מחיקה: ניהול ← נתוני הדגמה.</div>`:''}
   <nav class="tabs">${tabs.map(([k,l])=>`<button class="tab ${UI.tab===k?'on':''}" data-act="tab" data-k="${k}">${l}</button>`).join('')}</nav>${body}</div>`;
@@ -542,6 +547,23 @@ function logTab(){
   <td><span class="tag" style="background:${CAT[e.cat]?.color}">${CAT[e.cat]?.label||e.cat}</span></td><td><button class="btn red sm" data-act="delEv" data-id="${e.id}">מחיקה</button></td></tr>`).join('')}</table></div>`;
 }
 
+function visitsTab(){
+  if(UI.visErr)return `<div class="card" style="margin-top:14px"><h3 style="color:var(--bad)">אין גישה לרשימת הכניסות</h3><p class="muted">צריך לעדכן את כללי האבטחה ב-Firebase (Firestore ← Rules) לנוסח החדש. (${esc(UI.visErr)})</p></div>`;
+  const v=S.visits||[];const t0=new Date().setHours(0,0,0,0);const g={};
+  v.forEach(x=>{const k=x.vid||x.id;(g[k]=g[k]||{name:x.name,cls:x.cls,n:0,first:x.at,last:x.at}).n++;const o=g[k];if(x.at<o.first)o.first=x.at;if(x.at>o.last){o.last=x.at;o.name=x.name;o.cls=x.cls}});
+  const rows=Object.values(g).sort((a,b)=>b.last-a.last);
+  const today=v.filter(x=>x.at>=t0).length,todayP=new Set(v.filter(x=>x.at>=t0).map(x=>x.vid)).size;
+  const byCls={};rows.forEach(r=>byCls[r.cls||'—']=(byCls[r.cls||'—']||0)+1);
+  const fd=t=>new Date(t).toLocaleString('he-IL',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'});
+  const stat=(val,l,ic)=>`<div class="card" style="text-align:center;padding:14px"><div style="font-size:24px">${ic}</div><div style="font-family:'Secular One';font-size:30px;color:var(--navy);line-height:1.1">${val}</div><div class="muted" style="font-size:13px">${l}</div></div>`;
+  return `<div class="sec-t"><h2>כניסות הורים</h2><div class="line"></div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">${stat(rows.length,'הורים שנכנסו','👨‍👦')}${stat(v.length,'סה"כ כניסות','🔁')}${stat(today,'כניסות היום','📅')}${stat(todayP,'הורים שנכנסו היום','✅')}</div>
+  ${rows.length?`<div class="chips" style="margin-top:14px">${Object.entries(byCls).map(([k,n])=>`<span class="chip">${esc(k)}<small>${n} הורים</small></span>`).join('')}</div>
+  <div style="overflow-x:auto"><table class="log"><tr><th>שם ההורה</th><th>כיתת הילד</th><th>כניסות</th><th>כניסה ראשונה</th><th>כניסה אחרונה</th></tr>
+  ${rows.map(r=>`<tr><td><b>${esc(r.name||'—')}</b></td><td>${esc(r.cls||'—')}</td><td><span class="tag" style="background:var(--navy3)">${r.n}</span></td><td>${fd(r.first)}</td><td>${fd(r.last)}</td></tr>`).join('')}</table></div>
+  <div style="margin-top:14px"><button class="btn red sm" data-act="clrVisits">איפוס רשימת הכניסות</button></div>`
+  :`<div class="empty card" style="margin-top:14px">עדיין לא נכנסו הורים</div>`}`;
+}
 function adminTab(){
   const cl=sortedClasses();const st=S.settings;
   if(!UI.adminCls||!cl.find(c=>c.id===UI.adminCls))UI.adminCls=cl[0]?.id||null;
@@ -696,13 +718,22 @@ function parentHero(){
 }
 function parentView(){
   const allCode=UI.parentCodes.find(c=>UI.pdata[c]&&UI.pdata[c].all);
-  if(allCode)return parentAll(UI.pdata[allCode]);
+  if(allCode){const p=UI.pdata[allCode];if(!UI.who)return whoForm(p);
+    if(!UI.visitLogged){UI.visitLogged=true;Promise.resolve(API.logVisit({vid:UI.who.vid,name:UI.who.name,cls:UI.who.cls,at:Date.now()})).catch(e=>console.error(e))}
+    return parentAll(p)}
   const loading=UI.parentCodes.some(c=>UI.pdata[c]===undefined);
   return `<div class="wrap" style="max-width:480px"><div class="card" style="margin-top:26px;text-align:center">
     <div style="font-size:44px">👨‍👦</div><h3 style="color:var(--navy);font-size:26px">כניסת הורים</h3>
     <p class="muted" style="margin:6px 0 14px">הקלידו את קוד ההורים שקיבלתם מהת"ת</p>
     <form id="cf" class="row"><input name="c" inputmode="numeric" autocomplete="off" placeholder="קוד הורים" dir="ltr" style="flex:1;text-align:center;letter-spacing:6px;font-weight:800;font-size:22px" maxlength="12"><button class="btn gold">כניסה</button></form>
     <div class="err" style="margin-top:8px">${loading?'<span class="muted">בודק...</span>':esc(UI.perr||'')}</div></div></div>`;
+}
+function whoForm(p){const opts=(p.classes||[]).map(c=>c.name);
+  return `<div class="wrap" style="max-width:480px"><div class="card" style="margin-top:26px;text-align:center"><div style="font-size:42px">👋</div>
+    <h3 style="color:var(--navy);font-size:26px">ברוכים הבאים!</h3><p class="muted" style="margin:6px 0 14px">רק בכניסה הראשונה — נשמח לדעת מי אתם</p>
+    <form id="wf"><div class="field" style="text-align:start"><label>שם ההורה</label><input name="n" required maxlength="50" autocomplete="name"></div>
+    <div class="field" style="text-align:start"><label>כיתת הילד</label><select name="c" required><option value="">בחרו כיתה</option>${opts.map(o=>`<option>${esc(o)}</option>`).join('')}<option>כמה כיתות</option></select></div>
+    <button class="btn gold" style="width:100%;justify-content:center">כניסה</button></form></div></div>`;
 }
 function parentAll(p){
   const cl=(p.classes||[]).slice().sort((a,b)=>(b.score||0)-(a.score||0));const avg=p.rankBy==='avg';
@@ -727,7 +758,7 @@ function parentAll(p){
     <div class="legend">${CATS.map(c=>`<span><i style="background:${c.color}"></i>${c.label}</span>`).join('')}</div>
     <div class="sec-t"><h2>🏆 מובילים בכל תחום</h2><div class="line"></div></div><div class="catgrid">${leaders}</div>
     <div class="sec-t"><h2>📊 פירוט לפי כיתה</h2><div class="line"></div></div><div class="stars3">${grid}</div>
-    <p class="muted" style="text-align:center;font-size:13px;margin-top:22px">עודכן: ${p.updatedAt?new Date(p.updatedAt).toLocaleString('he-IL',{weekday:'long',hour:'2-digit',minute:'2-digit'}):'—'} · מוצגים נתונים כיתתיים בלבד</p></div>`;
+    <p class="muted" style="text-align:center;font-size:13px;margin-top:22px">עודכן: ${p.updatedAt?new Date(p.updatedAt).toLocaleString('he-IL',{weekday:'long',hour:'2-digit',minute:'2-digit'}):'—'} · מוצגים נתונים כיתתיים בלבד<br><button class="btn ghost sm" style="margin-top:8px" data-act="changeWho">לא ${esc(UI.who?.name||'')}? החלפה</button></p></div>`;
 }
 const watchers={};
 function watchCodes(){
@@ -837,6 +868,8 @@ document.addEventListener('click',async ev=>{
     case 'delStud':{const s=S.students.find(x=>x.id===id);if(!confirm(`למחוק את ${s.name}? גם הכרטיסים שלו יימחקו.`))return;await API.delStudent(id);schedulePublish();break}
     case 'printSlips':printSlips();break;
     case 'pmsg':UI.pmsg=true;render();break;
+    case 'changeWho':UI.who=null;UI.visitLogged=false;try{localStorage.removeItem('shavua_parent_who')}catch(e){}render();break;
+    case 'clrVisits':{if(!confirm('למחוק את כל רשימת הכניסות?'))return;await API.delVisits();toast('הרשימה אופסה');break}
     case 'pubNow':{toast('מעדכן...');const ok=await publishNow();toast(ok?'✓ תצוגת ההורים עודכנה (קוד '+(S.settings.parentCode||'')+')':'✗ נכשל: '+(UI.pubErr||''));break}
     case 'board':UI.board=true;render();break;
     case 'closeBoard':if(ev.target.closest('.sheet')&&!ev.target.closest('button'))return;UI.board=false;render();break;
@@ -856,9 +889,11 @@ document.addEventListener('change',e=>{if(e.target.id==='xl'&&e.target.files[0])
 document.addEventListener('input',e=>{if(e.target.id==='q')filterTiles()});
 document.addEventListener('submit',async e=>{
   e.preventDefault();
+  if(e.target.id==='wf'){const n=e.target.n.value.trim().slice(0,50),c=e.target.c.value.slice(0,40);if(!n||!c)return;UI.who={vid:rid(),name:n,cls:c};lsSet('shavua_parent_who',UI.who);render();return}
   if(e.target.id==='cf'){addCode(e.target.c.value);e.target.c.value='';render()}
   if(e.target.id==='lf'){UI.loginErr='';try{await API.login(STAFF_EMAIL,e.target.p.value)}catch(err){UI.loginErr='סיסמה שגויה';render()}}
 });
+addEventListener('hashchange',()=>{const m=location.hash.match(/p=([A-Za-z0-9]+)/);if(m){addCode(m[1]);UI.view='parent';history.replaceState(null,'',siteUrl());render()}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(UI.pmsg){UI.pmsg=false;render()}else if(UI.sheet){UI.sheet=null;render()}else if(UI.show){UI.show=false;render()}}});
 
 /* ---------- boot ---------- */

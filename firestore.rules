@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // רשימת אנשי הצוות המורשים — החלף/הוסף כתובות דוא"ל
     function isStaff() {
       return request.auth != null
         && request.auth.token.email in [
@@ -10,14 +9,20 @@ service cloud.firestore {
         ];
     }
 
-    // סיכום כיתתי להורים: קריאה לפי קוד בלבד, בלי אפשרות לרשום את כל הקודים
     match /public/{code} {
       allow get: if true;
       allow list: if false;
       allow write: if isStaff();
     }
 
-    // כל שאר הנתונים (תלמידים, כרטיסים, כיתות, הגדרות) — לצוות בלבד
+    match /visits/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['vid', 'name', 'cls', 'at'])
+        && request.resource.data.vid is string && request.resource.data.vid.size() <= 40
+        && request.resource.data.name is string && request.resource.data.name.size() <= 60
+        && request.resource.data.cls is string && request.resource.data.cls.size() <= 40
+        && request.resource.data.at is number;
+    }
+
     match /{collection}/{docId} {
       allow read, write: if isStaff();
     }
