@@ -350,9 +350,17 @@ function initDemo(){
 /* ---------- firebase store ---------- */
 /* ---------- Firebase דרך REST (עובד גם בנטפרי, שחוסם את ערוץ הסנכרון הרגיל) ---------- */
 async function initFirebase(){
-  const base='https://www.gstatic.com/firebasejs/10.12.2/';
-  const [A,U]=await Promise.all([import(base+'firebase-app.js'),import(base+'firebase-auth.js')]);
-  const app=A.initializeApp(FIREBASE_CONFIG),auth=U.getAuth(app);
+  /* כניסה דרך REST — בלי ספריות חיצוניות */
+  const KEY=FIREBASE_CONFIG.apiKey,AK='shavua_auth_v1';let sess=lsGet(AK,null),authCb=()=>{};
+  const authErr=async r=>{let m='';try{m=(await r.json()).error.message}catch(e){}const er=new Error(m||('HTTP '+r.status));er.code=m;return er};
+  const auth={get currentUser(){return sess?{email:sess.email,getIdToken:tok}:null}};
+  async function tok(){
+    if(!sess)throw new Error('signed-out');
+    if(Date.now()<sess.exp-60000)return sess.idToken;
+    const r=await fetch('https://securetoken.googleapis.com/v1/token?key='+KEY,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=refresh_token&refresh_token='+encodeURIComponent(sess.refresh)});
+    if(!r.ok){const e=await authErr(r);if(r.status===400){sess=null;try{localStorage.removeItem(AK)}catch(x){}authCb(null)}throw e}
+    const d=await r.json();sess={...sess,idToken:d.id_token,refresh:d.refresh_token,exp:Date.now()+Number(d.expires_in)*1000};lsSet(AK,sess);return sess.idToken;
+  }
   const PID=FIREBASE_CONFIG.projectId,ROOT=`projects/${PID}/databases/(default)/documents`,DB='https://firestore.googleapis.com/v1/'+ROOT;
   const enc=v=>v===null||v===undefined?{nullValue:null}:typeof v==='boolean'?{booleanValue:v}:typeof v==='number'?(Number.isInteger(v)?{integerValue:String(v)}:{doubleValue:v}):typeof v==='string'?{stringValue:v}:Array.isArray(v)?{arrayValue:{values:v.map(enc)}}:{mapValue:{fields:encF(v)}};
   const encF=o=>{const f={};for(const k in o){if(k!=='id'&&o[k]!==undefined)f[k]=enc(o[k])}return f};
@@ -390,9 +398,10 @@ async function initFirebase(){
   async function pollSettings(){try{const se=await rq('GET','/settings/main');const v=decF(se.fields||{});S.settings={...DEF_SETTINGS,...v,points:{...DEF_SETTINGS.points,...(v.points||{})}};emit()}catch(e){if(e.status!==404)fail(e)}}
   async function pollVisits(full){try{const r=full?await listAll('visits'):await since('visits','at',visitsAt);if(full)S.visits=[];r.forEach(v=>{S.visits.push(v);if(v.at>visitsAt)visitsAt=v.at});UI.visErr=null;if(r.length||full)emit()}catch(e){UI.visErr=String(e.code||e.message);emit()}}
   API={
-    onAuth:cb=>U.onAuthStateChanged(auth,cb),
-    login:(e,p)=>U.signInWithEmailAndPassword(auth,e,p),
-    logout:()=>U.signOut(auth),
+    onAuth:cb=>{authCb=cb;cb(auth.currentUser)},
+    async login(e,p){const r=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='+KEY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p,returnSecureToken:true})});
+      if(!r.ok)throw await authErr(r);const d=await r.json();sess={email:d.email,idToken:d.idToken,refresh:d.refreshToken,exp:Date.now()+Number(d.expiresIn)*1000};lsSet(AK,sess);authCb(auth.currentUser)},
+    async logout(){sess=null;try{localStorage.removeItem(AK)}catch(e){}authCb(null)},
     async startStaff(){this.stopStaff();try{await loadAll()}catch(e){fail(e);return}pollVisits(true);
       timers=[setInterval(()=>poll(['events']),15000),setInterval(()=>poll(['classes','students']),60000),setInterval(pollSettings,60000),setInterval(()=>pollVisits(false),60000)]},
     stopStaff(){timers.forEach(clearInterval);timers=[]},
@@ -916,14 +925,14 @@ document.addEventListener('submit',async e=>{
   e.preventDefault();
   if(e.target.id==='wf'){const n=e.target.n.value.trim().slice(0,50),c=e.target.c.value.slice(0,40);if(!n||!c)return;UI.who={vid:rid(),name:n,cls:c};lsSet('shavua_parent_who',UI.who);render();return}
   if(e.target.id==='cf'){addCode(e.target.c.value);e.target.c.value='';render()}
-  if(e.target.id==='lf'){UI.loginErr='';try{await API.login(STAFF_EMAIL,e.target.p.value)}catch(err){UI.loginErr='סיסמה שגויה';render()}}
+  if(e.target.id==='lf'){UI.loginErr='';try{await API.login(STAFF_EMAIL,e.target.p.value)}catch(err){console.error(err);UI.loginErr=/PASSWORD|CREDENTIAL|EMAIL_NOT_FOUND/.test(err.code||'')?'סיסמה שגויה':'אין חיבור לשרת הכניסה (ייתכן שהסינון חוסם). '+(err.code||err.message||'');render()}}
 });
 addEventListener('hashchange',()=>{const m=location.hash.match(/p=([A-Za-z0-9]+)/);if(m){addCode(m[1]);UI.view='parent';history.replaceState(null,'',siteUrl());render()}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(UI.pmsg){UI.pmsg=false;render()}else if(UI.sheet){UI.sheet=null;render()}else if(UI.show){UI.show=false;render()}}});
 
 /* ---------- boot ---------- */
 (async function boot(){
-  if(FIREBASE_CONFIG){MODE='fb';try{await initFirebase()}catch(e){console.error(e);MODE='demo';initDemo()}}else{initDemo();await publishNow()}
+  if(FIREBASE_CONFIG){MODE='fb';try{await initFirebase()}catch(e){console.error(e);$('#app').innerHTML=hero()+`<div class="wrap"><div class="card" style="margin-top:20px;text-align:center"><h3 style="color:var(--bad)">אין חיבור לשרת</h3><p class="muted">ייתכן שהסינון במכשיר הזה חוסם את האתר. נסו לרענן, או ממכשיר/רשת אחרים.<br><small dir="ltr">${esc(e.message||e)}</small></p><button class="btn" onclick="location.reload()">רענון</button></div></div>`;return}}else{initDemo();await publishNow()}
   const m=location.hash.match(/p=([A-Za-z0-9]+)/);
   if(m){addCode(m[1]);UI.view='parent';history.replaceState(null,'',siteUrl())}
   if(MODE==='fb')API.onAuth(u=>{UI.user=u;if(u){if(UI.view!=='parent'){UI.view='staff'}API.startStaff();setTimeout(publishNow,5000)}else{API.stopStaff();if(UI.view==='staff')UI.view='login'}render()});
